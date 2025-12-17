@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ExpressFlow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'Inter', 'Segoe UI', 'Roboto', 'sans-serif'],
+            },
+            colors: {
+              primary: '#0f172a',
+              secondary: '#334155',
+              accent: '#007AFF', // macOS Blue
+            },
+            boxShadow: {
+              'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.1)',
+              'glass-sm': '0 4px 12px 0 rgba(0, 0, 0, 0.05)',
+              'glow': '0 0 20px rgba(0, 122, 255, 0.3)',
+            },
+            animation: {
+              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            }
+          }
+        }
+      }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script type="importmap">
+{
+  "imports": {
+    "recharts": "https://esm.sh/recharts@^3.5.1",
+    "react/": "https://esm.sh/react@^19.2.2/",
+    "react": "https://esm.sh/react@^19.2.2",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.2/"
+  }
+}
+</script>
+<script>
+  // Smooth mouse tracking for background parallax
+  document.addEventListener('DOMContentLoaded', () => {
+    let currentX = 0;
+    let currentY = 0;
+    let targetX = 0;
+    let targetY = 0;
+
+    document.addEventListener('mousemove', (e) => {
+      // Normalize coordinates -1 to 1
+      targetX = (e.clientX / window.innerWidth - 0.5) * 2;
+      targetY = (e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    // Animation loop for extra smoothness (interpolation)
+    function animate() {
+      // Linear interpolation (lerp) for delay/smoothness
+      currentX += (targetX - currentX) * 0.05;
+      currentY += (targetY - currentY) * 0.05;
+
+      document.documentElement.style.setProperty('--mouse-x', currentX.toFixed(4));
+      document.documentElement.style.setProperty('--mouse-y', currentY.toFixed(4));
+      
+      requestAnimationFrame(animate);
+    }
+    animate();
+  });
+</script>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    background-color: #f5f5f7;
+    color: #1d1d1f;
+  }
+  
+  /* Premium Glass Effect (Apple Style) */
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.65); /* Higher opacity for legibility, but still glass */
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.05);
+  }
+
+  /* Deeper glass for inputs */
+  .glass-input {
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .glass-input:focus {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: #007AFF;
+    box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.15);
+    outline: none;
+  }
+
+  /* macOS Big Sur Sidebar Style */
+  .glass-sidebar {
+    background: rgba(20, 20, 30, 0.85); /* Deep dark glass */
+    backdrop-filter: blur(50px) saturate(150%);
+    -webkit-backdrop-filter: blur(50px) saturate(150%);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  /* Smooth Scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.2);
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  /* Background Blobs */
+  .blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px); /* Slightly reduced blur for performance */
+    opacity: 0.4;
+    will-change: transform;
+    /* Transition handled by JS requestAnimationFrame for better smoothness, 
+       but we keep a base transition for initial load */
+    transition: opacity 1s ease;
+  }
+  
+  /* Mouse driven transforms using CSS vars set by JS */
+  .blob-1 {
+    transform: translate(calc(var(--mouse-x, 0) * -20px), calc(var(--mouse-y, 0) * -20px));
+  }
+  .blob-2 {
+    transform: translate(calc(var(--mouse-x, 0) * 25px), calc(var(--mouse-y, 0) * 25px));
+  }
+  .blob-3 {
+    transform: translate(calc(var(--mouse-x, 0) * 15px), calc(var(--mouse-y, 0) * -15px));
+  }
+</style>
+</head>
+  <body class="antialiased selection:bg-blue-500 selection:text-white relative min-h-screen overflow-hidden">
+    <!-- Vibrant Mesh Gradient Background (Refined for depth) -->
+    <div class="fixed inset-0 -z-10 bg-[#f2f2f7]">
+        <div class="blob blob-1 top-[-5%] left-[-5%] w-[45%] h-[45%] bg-[#34d399]"></div>
+        <div class="blob blob-2 bottom-[-5%] right-[-5%] w-[45%] h-[45%] bg-[#60a5fa]"></div>
+        <div class="blob blob-3 top-[35%] left-[35%] w-[35%] h-[35%] bg-[#a78bfa]"></div>
+    </div>
+    <div id="root" class="h-screen flex flex-col"></div>
+  </body>
+</html>
