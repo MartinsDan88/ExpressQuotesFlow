@@ -3,7 +3,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>ExpressFlow</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -91,9 +91,25 @@
     opacity: 0.45;
     will-change: transform;
   }
+  
+  /* Custom Scrollbar for better UX */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.2);
+  }
 </style>
 </head>
-  <body class="antialiased selection:bg-blue-500 selection:text-white relative min-h-screen overflow-hidden">
+  <body class="antialiased selection:bg-blue-500 selection:text-white relative min-h-screen">
     <div class="fixed inset-0 -z-10 bg-[#f2f2f7]">
         <div class="blob top-[-5%] left-[-5%] w-[45%] h-[45%] bg-[#34d399]"></div>
         <div class="blob bottom-[-5%] right-[-5%] w-[45%] h-[45%] bg-[#60a5fa]"></div>
