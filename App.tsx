@@ -8,7 +8,8 @@ import PricingForm from './components/PricingForm';
 import SalesProposalForm from './components/SalesProposalForm';
 import DynamicFilter from './components/DynamicFilter';
 import AdminPanel from './components/AdminPanel';
-import { IconShip, IconPlane, IconTruck, IconClock, IconCheck, IconPlus, IconTrash, IconDollar, IconSearch, IconEdit } from './components/Icons';
+import InviteModal from './components/InviteModal'; // Importando o novo modal
+import { IconShip, IconPlane, IconTruck, IconClock, IconCheck, IconPlus, IconTrash, IconDollar, IconSearch, IconEdit, IconSend } from './components/Icons';
 
 const formatDuration = (startStr?: string, endStr?: string) => {
     if (!startStr) return '-';
@@ -29,6 +30,7 @@ const App: React.FC = () => {
   const [adminEmailInput, setAdminEmailInput] = useState('');
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
   const [quotes, setQuotes] = useState<QuoteRequest[]>([]);
   const [currentView, setCurrentView] = useState<'DASHBOARD' | 'NEW_QUOTE' | 'LIST' | 'PRICING_TASK' | 'SALES_PROPOSAL' | 'DYNAMIC_FILTER' | 'EDIT_QUOTE' | 'ADMIN_PANEL'>('DASHBOARD');
@@ -185,6 +187,7 @@ const App: React.FC = () => {
   const canCreateQuote = currentUser?.role === Role.SALES || currentUser?.role === Role.INSIDE_SALES || currentUser?.role === Role.MANAGEMENT;
   const canViewPricingTasks = currentUser?.role.startsWith('PRICING') || currentUser?.role === Role.MANAGEMENT;
   const isManagement = currentUser?.role === Role.MANAGEMENT;
+  const isMasterAdmin = currentUser?.email === 'martins_dan@icloud.com';
 
   if (!currentUser) {
     return (
@@ -314,6 +317,18 @@ const App: React.FC = () => {
             Dashboard
           </button>
           
+          {isMasterAdmin && (
+            <button 
+              onClick={() => setIsInviteModalOpen(true)}
+              className="w-full text-left px-3 py-4 mt-2 mb-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-glow flex items-center group transition-all hover:brightness-110"
+            >
+                <div className="bg-white/20 p-1.5 rounded-lg mr-3 group-hover:scale-110 transition-transform">
+                    <IconPlus />
+                </div>
+                <span>Convidar Colaborador</span>
+            </button>
+          )}
+
           {canCreateQuote && (
             <>
                 <div className="pt-6 pb-2 px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Comercial</div>
@@ -359,6 +374,13 @@ const App: React.FC = () => {
       </aside>
 
       <main className="flex-1 overflow-y-auto p-4 md:p-8 h-screen relative z-10 custom-scrollbar">
+        {isInviteModalOpen && (
+          <InviteModal 
+            onClose={() => setIsInviteModalOpen(false)} 
+            onInvite={handleInviteUser}
+          />
+        )}
+
         {currentView === 'DASHBOARD' && (
           <Dashboard 
             user={currentUser} 
