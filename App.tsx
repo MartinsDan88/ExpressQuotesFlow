@@ -26,6 +26,11 @@ const App: React.FC = () => {
   const [invitedUsers, setInvitedUsers] = useState<User[]>([]);
   const [loginStep, setLoginStep] = useState<'INITIAL' | 'USER_LOGIN' | 'ADMIN_LOGIN'>('INITIAL');
   
+  // Admin Login States
+  const [adminEmailInput, setAdminEmailInput] = useState('');
+  const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  const [loginError, setLoginError] = useState('');
+
   const [quotes, setQuotes] = useState<QuoteRequest[]>([]);
   const [currentView, setCurrentView] = useState<'DASHBOARD' | 'NEW_QUOTE' | 'LIST' | 'PRICING_TASK' | 'SALES_PROPOSAL' | 'DYNAMIC_FILTER' | 'EDIT_QUOTE' | 'ADMIN_PANEL'>('DASHBOARD');
   const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null);
@@ -34,7 +39,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     setQuotes(getInitialQuotes());
-    // Load users from localStorage for persistence in prototype
     const saved = localStorage.getItem('expressflow_users');
     if (saved) setInvitedUsers(JSON.parse(saved));
   }, []);
@@ -46,18 +50,32 @@ const App: React.FC = () => {
   const handleLogin = (user: User) => {
     setCurrentUser(user);
     setLoginStep('INITIAL');
+    setLoginError('');
     setCurrentView('DASHBOARD');
   };
 
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simplified admin login for prototype
-    handleLogin({ id: 'admin-root', name: 'Super Administrador', role: Role.MANAGEMENT, email: 'admin@expressflow.com' });
+    // Strict validation based on user request
+    if (adminEmailInput === 'martins_dan@icloud.com' && adminPasswordInput === 'zeroumaonove') {
+        handleLogin({ 
+            id: 'admin-master', 
+            name: 'Administrador Master', 
+            role: Role.MANAGEMENT, 
+            email: 'martins_dan@icloud.com' 
+        });
+        setAdminEmailInput('');
+        setAdminPasswordInput('');
+    } else {
+        setLoginError('Credenciais de administrador inválidas.');
+    }
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     setLoginStep('INITIAL');
+    setAdminEmailInput('');
+    setAdminPasswordInput('');
   };
 
   const handleInviteUser = (user: User) => {
@@ -186,7 +204,7 @@ const App: React.FC = () => {
                   <span className="text-white/50 group-hover:text-white group-hover:translate-x-1 transition-all">›</span>
                 </button>
                 <button 
-                  onClick={() => setLoginStep('ADMIN_LOGIN')}
+                  onClick={() => { setLoginStep('ADMIN_LOGIN'); setLoginError(''); }}
                   className="w-full p-4 rounded-xl bg-white/40 border border-slate-200 text-slate-600 font-bold flex justify-between items-center group transition-all"
                 >
                   <span>Acesso Administrador</span>
@@ -201,19 +219,34 @@ const App: React.FC = () => {
                     <button type="button" onClick={() => setLoginStep('INITIAL')} className="text-xs font-medium text-accent hover:text-blue-700 flex items-center px-3 py-1.5 rounded-lg">
                         ‹ Voltar
                     </button>
-                    <h2 className="text-sm font-bold text-slate-800 ml-auto mr-auto uppercase tracking-wide">Login Admin</h2>
+                    <h2 className="text-sm font-bold text-slate-800 ml-auto mr-auto uppercase tracking-wide">Login Administrador</h2>
                     <div className="w-12"></div>
                 </div>
                 <div className="space-y-4">
                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Usuário</label>
-                      <input type="text" defaultValue="admin" className="glass-input w-full p-3 rounded-xl text-sm" />
+                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">E-mail</label>
+                      <input 
+                        required
+                        type="email" 
+                        value={adminEmailInput}
+                        onChange={e => setAdminEmailInput(e.target.value)}
+                        className="glass-input w-full p-3 rounded-xl text-sm" 
+                        placeholder="exemplo@icloud.com"
+                      />
                    </div>
                    <div className="space-y-1">
                       <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Senha</label>
-                      <input type="password" defaultValue="******" className="glass-input w-full p-3 rounded-xl text-sm" />
+                      <input 
+                        required
+                        type="password" 
+                        value={adminPasswordInput}
+                        onChange={e => setAdminPasswordInput(e.target.value)}
+                        className="glass-input w-full p-3 rounded-xl text-sm" 
+                        placeholder="••••••••"
+                      />
                    </div>
-                   <button type="submit" className="w-full bg-accent text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-500/20">Acessar Painel</button>
+                   {loginError && <p className="text-[10px] text-rose-500 font-bold text-center animate-pulse">{loginError}</p>}
+                   <button type="submit" className="w-full bg-slate-800 text-white py-3 rounded-xl font-bold shadow-lg shadow-black/20 hover:bg-black transition-colors">Acessar Painel</button>
                 </div>
               </form>
             )}
