@@ -26,7 +26,6 @@ const App: React.FC = () => {
   const [invitedUsers, setInvitedUsers] = useState<User[]>([]);
   const [loginStep, setLoginStep] = useState<'INITIAL' | 'USER_LOGIN' | 'ADMIN_LOGIN'>('INITIAL');
   
-  // Admin Login States
   const [adminEmailInput, setAdminEmailInput] = useState('');
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -38,13 +37,24 @@ const App: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<QuoteStatus | 'ALL'>('ALL');
 
   useEffect(() => {
-    setQuotes(getInitialQuotes());
-    const saved = localStorage.getItem('expressflow_users');
-    if (saved) setInvitedUsers(JSON.parse(saved));
+    try {
+      setQuotes(getInitialQuotes());
+      const saved = localStorage.getItem('expressflow_users');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setInvitedUsers(parsed);
+      }
+    } catch (e) {
+      console.error("Erro ao carregar dados iniciais:", e);
+    }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('expressflow_users', JSON.stringify(invitedUsers));
+    try {
+      localStorage.setItem('expressflow_users', JSON.stringify(invitedUsers));
+    } catch (e) {
+      console.warn("LocalStorage indisponível");
+    }
   }, [invitedUsers]);
 
   const handleLogin = (user: User) => {
@@ -56,7 +66,6 @@ const App: React.FC = () => {
 
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Strict validation based on user request
     if (adminEmailInput === 'martins_dan@icloud.com' && adminPasswordInput === 'zeroumaonove') {
         handleLogin({ 
             id: 'admin-master', 
@@ -142,12 +151,6 @@ const App: React.FC = () => {
     }));
   };
 
-  const handleCancelQuote = (id: string) => {
-    if (window.confirm("Cancelar esta solicitação?")) {
-      handleStatusChange(id, QuoteStatus.CANCELLED);
-    }
-  };
-
   const handleQuoteClick = (quote: QuoteRequest) => {
     if (!currentUser) return;
     const isPricing = currentUser.role.startsWith('PRICING');
@@ -167,8 +170,8 @@ const App: React.FC = () => {
 
   const filteredQuotes = quotes.filter(q => {
     if (!currentUser) return false;
-    if (currentUser.role === Role.MANAGEMENT || currentUser.role === Role.INSIDE_SALES) { } 
-    else if (currentUser.role === Role.SALES) {
+    if (currentUser.role === Role.MANAGEMENT || currentUser.role === Role.INSIDE_SALES) return true;
+    if (currentUser.role === Role.SALES) {
         if (q.requesterId !== currentUser.id) return false;
     } else if (currentUser.role.startsWith('PRICING')) {
         if (q.assignedPricingRole !== currentUser.role) return false;
@@ -182,15 +185,14 @@ const App: React.FC = () => {
   const canCreateQuote = currentUser?.role === Role.SALES || currentUser?.role === Role.INSIDE_SALES || currentUser?.role === Role.MANAGEMENT;
   const canViewPricingTasks = currentUser?.role.startsWith('PRICING') || currentUser?.role === Role.MANAGEMENT;
   const isManagement = currentUser?.role === Role.MANAGEMENT;
-  const canCancel = currentUser?.role === Role.SALES || currentUser?.role === Role.INSIDE_SALES || isManagement;
 
   if (!currentUser) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-md glass-panel rounded-2xl shadow-2xl overflow-hidden relative z-10 backdrop-blur-2xl">
+      <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-screen">
+        <div className="w-full max-w-md glass-panel rounded-3xl shadow-2xl overflow-hidden relative z-50 animate-fade-in">
           <div className="p-8 text-center flex flex-col items-center border-b border-black/5">
-             <h1 className="text-3xl font-semibold text-slate-800 tracking-tight">ExpressFlow</h1>
-             <p className="text-slate-500 text-xs mt-1 uppercase tracking-widest font-medium">Portal Logístico</p>
+             <h1 className="text-3xl font-bold text-slate-800 tracking-tight">ExpressFlow</h1>
+             <p className="text-slate-500 text-xs mt-1 uppercase tracking-widest font-semibold">Portal Logístico</p>
           </div>
           
           <div className="p-8">
@@ -198,14 +200,14 @@ const App: React.FC = () => {
               <div className="space-y-4">
                 <button 
                   onClick={() => setLoginStep('USER_LOGIN')}
-                  className="w-full p-4 rounded-xl bg-accent text-white font-bold shadow-glow flex justify-between items-center group transition-all"
+                  className="w-full p-4 rounded-2xl bg-accent text-white font-bold shadow-glow flex justify-between items-center group transition-all hover:brightness-110 active:scale-95"
                 >
                   <span>Entrar como Usuário</span>
                   <span className="text-white/50 group-hover:text-white group-hover:translate-x-1 transition-all">›</span>
                 </button>
                 <button 
                   onClick={() => { setLoginStep('ADMIN_LOGIN'); setLoginError(''); }}
-                  className="w-full p-4 rounded-xl bg-white/40 border border-slate-200 text-slate-600 font-bold flex justify-between items-center group transition-all"
+                  className="w-full p-4 rounded-2xl bg-white/40 border border-slate-200 text-slate-600 font-bold flex justify-between items-center group transition-all hover:bg-white/60 active:scale-95"
                 >
                   <span>Acesso Administrador</span>
                   <span className="text-slate-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all">›</span>
@@ -216,10 +218,10 @@ const App: React.FC = () => {
             {loginStep === 'ADMIN_LOGIN' && (
               <form onSubmit={handleAdminLogin} className="space-y-4 animate-fade-in">
                 <div className="flex items-center mb-6">
-                    <button type="button" onClick={() => setLoginStep('INITIAL')} className="text-xs font-medium text-accent hover:text-blue-700 flex items-center px-3 py-1.5 rounded-lg">
+                    <button type="button" onClick={() => setLoginStep('INITIAL')} className="text-xs font-bold text-accent hover:text-blue-700 flex items-center px-3 py-1.5 rounded-xl bg-blue-50">
                         ‹ Voltar
                     </button>
-                    <h2 className="text-sm font-bold text-slate-800 ml-auto mr-auto uppercase tracking-wide">Login Administrador</h2>
+                    <h2 className="text-sm font-bold text-slate-800 ml-auto mr-auto uppercase tracking-wide">Login Admin</h2>
                     <div className="w-12"></div>
                 </div>
                 <div className="space-y-4">
@@ -230,7 +232,7 @@ const App: React.FC = () => {
                         type="email" 
                         value={adminEmailInput}
                         onChange={e => setAdminEmailInput(e.target.value)}
-                        className="glass-input w-full p-3 rounded-xl text-sm" 
+                        className="glass-input w-full p-3.5 rounded-2xl text-sm" 
                         placeholder="exemplo@icloud.com"
                       />
                    </div>
@@ -241,12 +243,12 @@ const App: React.FC = () => {
                         type="password" 
                         value={adminPasswordInput}
                         onChange={e => setAdminPasswordInput(e.target.value)}
-                        className="glass-input w-full p-3 rounded-xl text-sm" 
+                        className="glass-input w-full p-3.5 rounded-2xl text-sm" 
                         placeholder="••••••••"
                       />
                    </div>
-                   {loginError && <p className="text-[10px] text-rose-500 font-bold text-center animate-pulse">{loginError}</p>}
-                   <button type="submit" className="w-full bg-slate-800 text-white py-3 rounded-xl font-bold shadow-lg shadow-black/20 hover:bg-black transition-colors">Acessar Painel</button>
+                   {loginError && <p className="text-[10px] text-rose-500 font-bold text-center">{loginError}</p>}
+                   <button type="submit" className="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold shadow-lg shadow-black/10 hover:bg-black transition-all active:scale-95">Acessar Painel</button>
                 </div>
               </form>
             )}
@@ -254,7 +256,7 @@ const App: React.FC = () => {
             {loginStep === 'USER_LOGIN' && (
                <div className="space-y-4 animate-fade-in">
                   <div className="flex items-center mb-6">
-                    <button type="button" onClick={() => setLoginStep('INITIAL')} className="text-xs font-medium text-accent hover:text-blue-700 flex items-center px-3 py-1.5 rounded-lg">
+                    <button type="button" onClick={() => setLoginStep('INITIAL')} className="text-xs font-bold text-accent hover:text-blue-700 flex items-center px-3 py-1.5 rounded-xl bg-blue-50">
                         ‹ Voltar
                     </button>
                     <h2 className="text-sm font-bold text-slate-800 ml-auto mr-auto uppercase tracking-wide">Selecionar Usuário</h2>
@@ -267,16 +269,16 @@ const App: React.FC = () => {
                         <button
                           key={u.id}
                           onClick={() => handleLogin(u)}
-                          className="w-full p-4 rounded-xl bg-white/40 border border-white/50 hover:bg-accent hover:text-white hover:shadow-glow transition-all duration-300 text-left"
+                          className="w-full p-4 rounded-2xl bg-white/40 border border-white/50 hover:bg-accent hover:text-white hover:shadow-glow transition-all duration-300 text-left group"
                         >
                           <div className="font-bold text-sm">{u.name}</div>
-                          <div className="text-[10px] opacity-70 uppercase tracking-widest">{u.role.replace(/_/g, ' ')}</div>
+                          <div className="text-[10px] opacity-70 uppercase tracking-widest font-semibold group-hover:text-white/80">{u.role.replace(/_/g, ' ')}</div>
                         </button>
                       ))
                     ) : (
                       <div className="text-center py-10 text-slate-400 space-y-4">
                         <p className="text-sm">Nenhum usuário cadastrado.</p>
-                        <p className="text-[10px] uppercase">O administrador deve enviar convites.</p>
+                        <p className="text-[10px] uppercase font-bold">O administrador deve enviar convites.</p>
                       </div>
                     )}
                   </div>
@@ -284,7 +286,7 @@ const App: React.FC = () => {
             )}
           </div>
         </div>
-        <p className="mt-8 text-slate-400 text-[10px] font-medium tracking-widest relative z-10 uppercase">ExpressFlow v1.2</p>
+        <p className="mt-8 text-slate-400 text-[10px] font-bold tracking-widest relative z-50 uppercase">ExpressFlow v1.2</p>
       </div>
     );
   }
