@@ -37,6 +37,9 @@ const App: React.FC = () => {
   const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null);
   const [editingQuote, setEditingQuote] = useState<QuoteRequest | null>(null);
   const [filterStatus, setFilterStatus] = useState<QuoteStatus | 'ALL'>('ALL');
+  
+  // Mobile UI States
+  const [showMobileMenu, setShowMobileMenu] = useState(true);
 
   useEffect(() => {
     try {
@@ -73,12 +76,17 @@ const App: React.FC = () => {
     }
   }, [quotes]);
 
+  const navigateTo = (view: any, status: QuoteStatus | 'ALL' = 'ALL') => {
+    setCurrentView(view);
+    setFilterStatus(status);
+    setShowMobileMenu(false); // Esconde o menu no mobile após clicar
+  };
+
   const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
     const email = loginEmail.toLowerCase().trim();
     
-    // Check Master
     if (email === 'martins_dan@icloud.com') {
         setTargetUser({ 
             id: 'admin-master', 
@@ -91,7 +99,6 @@ const App: React.FC = () => {
         return;
     }
 
-    // Check Invited Users
     const found = invitedUsers.find(u => u.email.toLowerCase().trim() === email);
     if (found) {
         setTargetUser(found);
@@ -113,6 +120,7 @@ const App: React.FC = () => {
         setCurrentUser(targetUser);
         setLoginError('');
         setCurrentView('DASHBOARD');
+        setShowMobileMenu(true); // Garante que comece no menu no mobile
     } else {
         setLoginError('Senha incorreta.');
     }
@@ -133,6 +141,7 @@ const App: React.FC = () => {
     const updatedTarget = { ...targetUser, password: loginPassword };
     setCurrentUser(updatedTarget);
     setCurrentView('DASHBOARD');
+    setShowMobileMenu(true);
   };
 
   const handleLogout = () => {
@@ -155,13 +164,13 @@ const App: React.FC = () => {
 
   const handleCreateQuote = (newQuote: QuoteRequest) => {
     setQuotes(prev => [newQuote, ...prev]);
-    setCurrentView('DASHBOARD');
+    navigateTo('DASHBOARD');
   };
 
   const handleUpdateQuote = (updatedQuote: QuoteRequest) => {
     setQuotes(prev => prev.map(q => q.id === updatedQuote.id ? updatedQuote : q));
     setEditingQuote(null);
-    setCurrentView('LIST');
+    navigateTo('LIST');
   };
 
   const handlePricingSubmit = (pricingData: SupplierQuote[]) => {
@@ -178,7 +187,7 @@ const App: React.FC = () => {
       return q;
     }));
     setActiveQuoteId(null);
-    setCurrentView('DASHBOARD');
+    navigateTo('DASHBOARD');
   };
 
   const handleSalesProposalSubmit = (updatedOptions: SupplierQuote[]) => {
@@ -195,7 +204,7 @@ const App: React.FC = () => {
       return q;
     }));
     setActiveQuoteId(null);
-    setCurrentView('LIST');
+    navigateTo('LIST');
   };
 
   const handleStatusChange = (id: string, newStatus: QuoteStatus) => {
@@ -214,13 +223,12 @@ const App: React.FC = () => {
     const isMgmt = currentUser.role === Role.MANAGEMENT;
     if (quote.status === QuoteStatus.PENDING_PRICING && (isPricing || isMgmt)) {
         setActiveQuoteId(quote.id);
-        setCurrentView('PRICING_TASK');
+        navigateTo('PRICING_TASK');
     } else if ((quote.status === QuoteStatus.PRICED || quote.status === QuoteStatus.PENDING_SALE) && (isSales || isMgmt)) {
         setActiveQuoteId(quote.id);
-        setCurrentView('SALES_PROPOSAL');
+        navigateTo('SALES_PROPOSAL');
     } else {
-        setFilterStatus(quote.status);
-        setCurrentView('LIST');
+        navigateTo('LIST', quote.status);
     }
   };
 
@@ -242,6 +250,17 @@ const App: React.FC = () => {
   const canViewPricingTasks = currentUser?.role.startsWith('PRICING') || currentUser?.role === Role.MANAGEMENT;
   const isManagement = currentUser?.role === Role.MANAGEMENT;
 
+  // Botão Voltar Mobile
+  const MobileBackButton = () => (
+    <button 
+        onClick={() => setShowMobileMenu(true)} 
+        className="md:hidden flex items-center space-x-2 bg-white/20 hover:bg-white/40 border border-white/20 text-slate-700 px-4 py-3 rounded-2xl mb-6 font-bold text-sm w-full transition-all active:scale-95"
+    >
+        <span className="text-xl">‹</span>
+        <span>Voltar ao Menu Principal</span>
+    </button>
+  );
+
   if (!currentUser) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-screen">
@@ -255,14 +274,7 @@ const App: React.FC = () => {
               <form onSubmit={handleEmailSubmit} className="space-y-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">E-mail Cadastrado</label>
-                  <input 
-                    required
-                    type="email" 
-                    value={loginEmail}
-                    onChange={e => setLoginEmail(e.target.value)}
-                    className="glass-input w-full p-4 rounded-2xl text-sm" 
-                    placeholder="digite seu e-mail corporativo"
-                  />
+                  <input required type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} className="glass-input w-full p-4 rounded-2xl text-sm" placeholder="digite seu e-mail corporativo" />
                 </div>
                 {loginError && <p className="text-[10px] text-rose-500 font-bold text-center">{loginError}</p>}
                 <button type="submit" className="w-full bg-accent text-white py-4 rounded-2xl font-bold shadow-glow hover:brightness-110 transition-all active:scale-95">Prosseguir</button>
@@ -276,15 +288,7 @@ const App: React.FC = () => {
                 <div className="space-y-1">
                   <p className="text-xs text-slate-500 mb-2">Olá <strong>{targetUser?.name}</strong>, digite sua senha:</p>
                   <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Senha</label>
-                  <input 
-                    required
-                    autoFocus
-                    type="password" 
-                    value={loginPassword}
-                    onChange={e => setLoginPassword(e.target.value)}
-                    className="glass-input w-full p-4 rounded-2xl text-sm" 
-                    placeholder="••••••••"
-                  />
+                  <input required autoFocus type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} className="glass-input w-full p-4 rounded-2xl text-sm" placeholder="••••••••" />
                 </div>
                 {loginError && <p className="text-[10px] text-rose-500 font-bold text-center">{loginError}</p>}
                 <button type="submit" className="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-black transition-all active:scale-95">Entrar no Sistema</button>
@@ -297,15 +301,7 @@ const App: React.FC = () => {
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Crie sua Senha</label>
-                  <input 
-                    required
-                    autoFocus
-                    type="password" 
-                    value={loginPassword}
-                    onChange={e => setLoginPassword(e.target.value)}
-                    className="glass-input w-full p-4 rounded-2xl text-sm" 
-                    placeholder="escolha uma senha forte"
-                  />
+                  <input required autoFocus type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} className="glass-input w-full p-4 rounded-2xl text-sm" placeholder="escolha uma senha forte" />
                 </div>
                 <button type="submit" className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-bold shadow-glow hover:bg-emerald-600 transition-all active:scale-95">Definir Senha e Entrar</button>
               </form>
@@ -319,10 +315,14 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-transparent">
-      <aside className="w-full md:w-64 glass-sidebar text-white flex-shrink-0 flex flex-col h-screen sticky top-0 z-50 shadow-2xl">
+      {/* Sidebar - Visible on Desktop or when mobileMenuOpen is true */}
+      <aside className={`
+        ${showMobileMenu ? 'flex' : 'hidden'} 
+        md:flex w-full md:w-64 glass-sidebar text-white flex-shrink-0 flex-col h-screen sticky top-0 z-50 shadow-2xl
+      `}>
         <div className="p-6 border-b border-white/10 flex flex-col items-center">
           <div className="mb-6 text-center">
-             <h1 className="text-lg font-semibold tracking-tight text-white/90">ExpressFlow</h1>
+             <h1 className="text-xl font-bold tracking-tight text-white/90">ExpressFlow</h1>
           </div>
           <div className="flex items-center space-x-3 w-full bg-white/5 p-2 rounded-xl backdrop-blur-md border border-white/10">
              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex-shrink-0 flex items-center justify-center font-bold text-xs text-white">
@@ -334,59 +334,68 @@ const App: React.FC = () => {
              </div>
           </div>
         </div>
-        <nav className="p-4 space-y-1 flex-1 overflow-y-auto custom-scrollbar">
-          <button onClick={() => { setCurrentView('DASHBOARD'); setFilterStatus('ALL'); }} className={`w-full text-left px-3 py-2 rounded-lg transition-all text-xs ${currentView === 'DASHBOARD' ? 'bg-accent text-white shadow-glow' : 'text-slate-400 hover:bg-white/10 hover:text-white'}`}>Dashboard</button>
+        <nav className="p-6 space-y-2 flex-1 overflow-y-auto custom-scrollbar">
+          <button onClick={() => navigateTo('DASHBOARD')} className={`w-full text-left px-4 py-3 rounded-xl transition-all text-sm font-semibold ${currentView === 'DASHBOARD' && !showMobileMenu ? 'bg-accent text-white shadow-glow' : 'text-slate-400 hover:bg-white/10 hover:text-white'}`}>Dashboard</button>
+          
           {canCreateQuote && (
             <>
-                <div className="pt-6 pb-2 px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Comercial</div>
-                <button onClick={() => setCurrentView('NEW_QUOTE')} className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center transition-all ${currentView === 'NEW_QUOTE' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><IconPlus /> <span className="ml-2">Nova Cotação</span></button>
-                <button onClick={() => { setCurrentView('LIST'); setFilterStatus(QuoteStatus.PENDING_SALE); }} className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${currentView === 'LIST' && filterStatus === QuoteStatus.PENDING_SALE ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>Vendas Pendentes</button>
+                <div className="pt-6 pb-2 px-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Comercial</div>
+                <button onClick={() => navigateTo('NEW_QUOTE')} className={`w-full text-left px-4 py-3 rounded-xl text-sm font-semibold flex items-center transition-all ${currentView === 'NEW_QUOTE' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><IconPlus /> <span className="ml-2">Nova Cotação</span></button>
+                <button onClick={() => navigateTo('LIST', QuoteStatus.PENDING_SALE)} className={`w-full text-left px-4 py-3 rounded-xl text-sm font-semibold transition-all ${currentView === 'LIST' && filterStatus === QuoteStatus.PENDING_SALE ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>Vendas Pendentes</button>
             </>
           )}
           {canViewPricingTasks && (
                <>
-                <div className="pt-6 pb-2 px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Pricing</div>
-                <button onClick={() => { setCurrentView('LIST'); setFilterStatus(QuoteStatus.PENDING_PRICING); }} className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${currentView === 'LIST' && filterStatus === QuoteStatus.PENDING_PRICING ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>Tarefas Pendentes</button>
+                <div className="pt-6 pb-2 px-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Pricing</div>
+                <button onClick={() => navigateTo('LIST', QuoteStatus.PENDING_PRICING)} className={`w-full text-left px-4 py-3 rounded-xl text-sm font-semibold transition-all ${currentView === 'LIST' && filterStatus === QuoteStatus.PENDING_PRICING ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>Tarefas Pendentes</button>
                </>
           )}
           {isManagement && (
                <>
-                <div className="pt-6 pb-2 px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Gestão / Admin</div>
-                <button onClick={() => setCurrentView('ADMIN_PANEL')} className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${currentView === 'ADMIN_PANEL' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>Gerenciar Equipe</button>
-                <button onClick={() => { setCurrentView('LIST'); setFilterStatus('ALL'); }} className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${currentView === 'LIST' && filterStatus === 'ALL' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>Todas as Cotações</button>
-                <button onClick={() => setCurrentView('DYNAMIC_FILTER')} className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center transition-all ${currentView === 'DYNAMIC_FILTER' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><IconSearch /> <span className="ml-2">Relatórios</span></button>
+                <div className="pt-6 pb-2 px-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Gestão / Admin</div>
+                <button onClick={() => navigateTo('ADMIN_PANEL')} className={`w-full text-left px-4 py-3 rounded-xl text-sm font-semibold transition-all ${currentView === 'ADMIN_PANEL' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>Gerenciar Equipe</button>
+                <button onClick={() => navigateTo('LIST', 'ALL')} className={`w-full text-left px-4 py-3 rounded-xl text-sm font-semibold transition-all ${currentView === 'LIST' && filterStatus === 'ALL' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>Todas as Cotações</button>
+                <button onClick={() => navigateTo('DYNAMIC_FILTER')} className={`w-full text-left px-4 py-3 rounded-xl text-sm font-semibold flex items-center transition-all ${currentView === 'DYNAMIC_FILTER' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><IconSearch /> <span className="ml-2">Relatórios</span></button>
                </>
           )}
         </nav>
-        <div className="p-4 border-t border-white/10">
-           <button onClick={handleLogout} className="w-full flex items-center justify-center px-3 py-2 rounded-lg border border-white/10 text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-all text-xs font-medium">Sair</button>
+        <div className="p-6 border-t border-white/10">
+           <button onClick={handleLogout} className="w-full flex items-center justify-center px-4 py-3 rounded-xl border border-white/10 text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-all text-sm font-bold">Sair</button>
         </div>
       </aside>
-      <main className="flex-1 overflow-y-auto p-4 md:p-8 h-screen relative z-10 custom-scrollbar">
-        {currentView === 'DASHBOARD' && <Dashboard user={currentUser} quotes={quotes} onStatusClick={(status) => { setFilterStatus(status); setCurrentView('LIST'); }} onQuoteClick={handleQuoteClick} />}
-        {currentView === 'ADMIN_PANEL' && <AdminPanel invitedUsers={invitedUsers} onInvite={handleAddUser} onRemove={handleRemoveUser} onClose={() => setCurrentView('DASHBOARD')} />}
-        {currentView === 'NEW_QUOTE' && <NewQuoteForm user={currentUser} onSubmit={handleCreateQuote} onCancel={() => setCurrentView('DASHBOARD')} />}
-        {currentView === 'EDIT_QUOTE' && editingQuote && <NewQuoteForm user={currentUser} initialData={editingQuote} onSubmit={handleUpdateQuote} onCancel={() => { setEditingQuote(null); setCurrentView('LIST'); }} />}
-        {currentView === 'PRICING_TASK' && activeQuoteId && <PricingForm quote={quotes.find(q => q.id === activeQuoteId)!} onSubmit={handlePricingSubmit} onCancel={() => { setActiveQuoteId(null); setCurrentView('LIST'); }} />}
-        {currentView === 'SALES_PROPOSAL' && activeQuoteId && <SalesProposalForm quote={quotes.find(q => q.id === activeQuoteId)!} onSubmit={handleSalesProposalSubmit} onCancel={() => { setActiveQuoteId(null); setCurrentView('LIST'); }} />}
+
+      {/* Main Content - Visible on Desktop or when mobileMenuOpen is false */}
+      <main className={`
+        ${!showMobileMenu ? 'flex' : 'hidden md:flex'} 
+        flex-1 overflow-y-auto p-4 md:p-8 h-screen relative z-10 custom-scrollbar flex-col
+      `}>
+        {!showMobileMenu && <MobileBackButton />}
+
+        {currentView === 'DASHBOARD' && <Dashboard user={currentUser} quotes={quotes} onStatusClick={(status) => navigateTo('LIST', status)} onQuoteClick={handleQuoteClick} />}
+        {currentView === 'ADMIN_PANEL' && <AdminPanel invitedUsers={invitedUsers} onInvite={handleAddUser} onRemove={handleRemoveUser} onClose={() => navigateTo('DASHBOARD')} />}
+        {currentView === 'NEW_QUOTE' && <NewQuoteForm user={currentUser} onSubmit={handleCreateQuote} onCancel={() => navigateTo('DASHBOARD')} />}
+        {currentView === 'EDIT_QUOTE' && editingQuote && <NewQuoteForm user={currentUser} initialData={editingQuote} onSubmit={handleUpdateQuote} onCancel={() => navigateTo('LIST')} />}
+        {currentView === 'PRICING_TASK' && activeQuoteId && <PricingForm quote={quotes.find(q => q.id === activeQuoteId)!} onSubmit={handlePricingSubmit} onCancel={() => navigateTo('LIST')} />}
+        {currentView === 'SALES_PROPOSAL' && activeQuoteId && <SalesProposalForm quote={quotes.find(q => q.id === activeQuoteId)!} onSubmit={handleSalesProposalSubmit} onCancel={() => navigateTo('LIST')} />}
         {currentView === 'DYNAMIC_FILTER' && <DynamicFilter quotes={quotes} onQuoteClick={handleQuoteClick} />}
+        
         {currentView === 'LIST' && (
-          <div className="glass-panel rounded-2xl shadow-glass overflow-hidden min-h-[600px] flex flex-col backdrop-blur-2xl animate-fade-in">
+          <div className="glass-panel rounded-3xl shadow-glass overflow-hidden min-h-[600px] flex flex-col backdrop-blur-2xl animate-fade-in">
              <div className="p-6 border-b border-black/5 flex justify-between items-center bg-white/30 sticky top-0 z-10 backdrop-blur-md">
                 <div>
-                    <h2 className="text-xl font-semibold text-slate-800 tracking-tight">Cotações</h2>
-                    <p className="text-xs text-slate-500 mt-1 font-medium uppercase tracking-wide">{filteredQuotes.length} registros</p>
+                    <h2 className="text-xl font-bold text-slate-800 tracking-tight">Cotações</h2>
+                    <p className="text-xs text-slate-500 mt-1 font-bold uppercase tracking-widest">{filteredQuotes.length} registros</p>
                 </div>
-                <button onClick={() => setCurrentView('DASHBOARD')} className="px-4 py-2 text-xs border border-slate-300/40 rounded-lg bg-white/50 text-slate-600 font-medium">Voltar</button>
+                <button onClick={() => navigateTo('DASHBOARD')} className="hidden md:block px-4 py-2 text-xs border border-slate-300/40 rounded-lg bg-white/50 text-slate-600 font-medium">Voltar</button>
              </div>
              <div className="overflow-x-auto flex-1 pb-24">
                 <table className="min-w-full divide-y divide-black/5">
                     <thead className="bg-white/40">
                         <tr>
                             <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">ID / Cliente</th>
-                            <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Modal / Rota</th>
+                            <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest hidden sm:table-cell">Modal / Rota</th>
                             <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Status</th>
-                            <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tempo</th>
+                            <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest hidden md:table-cell">Tempo</th>
                             <th className="px-6 py-4 text-right text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ações</th>
                         </tr>
                     </thead>
@@ -405,12 +414,12 @@ const App: React.FC = () => {
                                         <div className="flex items-center">
                                             <div className="h-8 w-8 rounded-lg bg-white/60 shadow-sm flex items-center justify-center text-accent font-bold text-[10px] mr-3 border border-white/60">{seq}</div>
                                             <div>
-                                                <div className="text-[10px] text-slate-500 font-mono">{q.id}</div>
-                                                <div className="text-sm font-medium text-slate-800">{q.clientName}</div>
+                                                <div className="text-[9px] text-slate-500 font-mono font-bold">{q.id}</div>
+                                                <div className="text-sm font-bold text-slate-800">{q.clientName}</div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
+                                    <td className="px-6 py-4 whitespace-nowrap hidden sm:table-cell">
                                         <div className="flex items-center text-xs text-slate-700">
                                             <span className="text-slate-500 mr-2 bg-white/50 p-1 rounded-md border border-white/40">{q.modalMain.includes('Aéreo') ? <IconPlane /> : q.modalMain.includes('Marítimo') ? <IconShip /> : <IconTruck />}</span>
                                             <span className="font-medium">{q.modalMain}</span>
@@ -418,32 +427,19 @@ const App: React.FC = () => {
                                         <div className="text-[10px] text-slate-500 mt-1 ml-8">{q.originCountry} → {q.destCountry}</div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <span className={`px-2.5 py-0.5 inline-flex text-[10px] leading-5 font-bold uppercase rounded-full border shadow-sm ${q.status === QuoteStatus.PENDING_PRICING ? 'bg-amber-100 text-amber-700' : q.status === QuoteStatus.PRICED ? 'bg-sky-100 text-sky-700' : q.status === QuoteStatus.CLOSED_WON ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                                        <span className={`px-2.5 py-1 inline-flex text-[9px] font-bold uppercase rounded-full border shadow-sm ${q.status === QuoteStatus.PENDING_PRICING ? 'bg-amber-100 text-amber-700' : q.status === QuoteStatus.PRICED ? 'bg-sky-100 text-sky-700' : q.status === QuoteStatus.CLOSED_WON ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
                                             {q.status.replace(/_/g, ' ')}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 relative">
+                                    <td className="px-6 py-4 relative hidden md:table-cell">
                                         <div className={`flex items-center text-xs font-medium ${isOverdue ? 'text-rose-500' : 'text-slate-600'}`}><IconClock /><span className="ml-1.5">{hoursElapsed}h <span className="text-slate-400">/ 22h</span></span></div>
-                                        <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-white rounded-xl p-3 shadow-2xl border border-black/5 z-50 text-[10px]">
-                                            <div className="space-y-1">
-                                                <div className="flex justify-between"><span>Pré-Pricing:</span><span className="font-mono">{formatDuration(q.createdDate, q.sentToPricingAt)}</span></div>
-                                                <div className="flex justify-between"><span>Pricing:</span><span className="font-mono">{formatDuration(q.sentToPricingAt, q.pricedAt)}</span></div>
-                                            </div>
-                                        </div>
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end space-x-2">
-                                            {isManagement && <button onClick={() => { setEditingQuote(q); setCurrentView('EDIT_QUOTE'); }} className="p-2 text-slate-400 hover:text-accent transition-colors"><IconEdit /></button>}
-                                            {showPricingAction && <button onClick={() => { setActiveQuoteId(q.id); setCurrentView('PRICING_TASK'); }} className="bg-accent text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-glow">Atender</button>}
-                                            {showSalesAction && <button onClick={() => { setActiveQuoteId(q.id); setCurrentView('SALES_PROPOSAL'); }} className="bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-glow flex items-center"><IconDollar /><span className="ml-1">Ofertas</span></button>}
-                                            {showStatusControl && (
-                                                <select value={q.status} onChange={(e) => handleStatusChange(q.id, e.target.value as QuoteStatus)} className="bg-white/50 border border-slate-200 text-[9px] font-bold p-1 rounded-md uppercase">
-                                                    <option value={QuoteStatus.PENDING_SALE}>Pendente</option>
-                                                    <option value={QuoteStatus.CLOSED_WON}>Ganho</option>
-                                                    <option value={QuoteStatus.CLOSED_LOST}>Perdido</option>
-                                                    <option value={QuoteStatus.CANCELLED}>Cancelar</option>
-                                                </select>
-                                            )}
+                                            {isManagement && <button onClick={() => { setEditingQuote(q); navigateTo('EDIT_QUOTE'); }} className="p-2 text-slate-400 hover:text-accent transition-colors"><IconEdit /></button>}
+                                            {showPricingAction && <button onClick={() => { setActiveQuoteId(q.id); navigateTo('PRICING_TASK'); }} className="bg-accent text-white px-3 py-2 rounded-xl text-xs font-bold shadow-glow">Atender</button>}
+                                            {showSalesAction && <button onClick={() => { setActiveQuoteId(q.id); navigateTo('SALES_PROPOSAL'); }} className="bg-emerald-500 text-white px-3 py-2 rounded-xl text-xs font-bold shadow-glow flex items-center"><IconDollar /><span className="ml-1">Ofertas</span></button>}
+                                            {!showPricingAction && !showSalesAction && <button onClick={() => handleQuoteClick(q)} className="p-2 text-accent hover:bg-accent/10 rounded-lg transition-colors"><IconSearch /></button>}
                                         </div>
                                     </td>
                                 </tr>
