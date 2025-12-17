@@ -110,6 +110,7 @@ export interface QuoteRequest {
 export interface User {
   id: string;
   name: string;
-  email: string; // Added email for invitations
+  email: string;
   role: Role;
+  password?: string; // Campo para armazenar a senha criada
 }

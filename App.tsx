@@ -8,7 +8,6 @@ import PricingForm from './components/PricingForm';
 import SalesProposalForm from './components/SalesProposalForm';
 import DynamicFilter from './components/DynamicFilter';
 import AdminPanel from './components/AdminPanel';
-import InviteModal from './components/InviteModal'; // Importando o novo modal
 import { IconShip, IconPlane, IconTruck, IconClock, IconCheck, IconPlus, IconTrash, IconDollar, IconSearch, IconEdit, IconSend } from './components/Icons';
 
 const formatDuration = (startStr?: string, endStr?: string) => {
@@ -25,12 +24,13 @@ const formatDuration = (startStr?: string, endStr?: string) => {
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [invitedUsers, setInvitedUsers] = useState<User[]>([]);
-  const [loginStep, setLoginStep] = useState<'INITIAL' | 'USER_LOGIN' | 'ADMIN_LOGIN'>('INITIAL');
   
-  const [adminEmailInput, setAdminEmailInput] = useState('');
-  const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  // Login States
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginStep, setLoginStep] = useState<'EMAIL' | 'PASSWORD' | 'FIRST_ACCESS'>('EMAIL');
+  const [targetUser, setTargetUser] = useState<User | null>(null);
   const [loginError, setLoginError] = useState('');
-  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
   const [quotes, setQuotes] = useState<QuoteRequest[]>([]);
   const [currentView, setCurrentView] = useState<'DASHBOARD' | 'NEW_QUOTE' | 'LIST' | 'PRICING_TASK' | 'SALES_PROPOSAL' | 'DYNAMIC_FILTER' | 'EDIT_QUOTE' | 'ADMIN_PANEL'>('DASHBOARD');
@@ -40,10 +40,16 @@ const App: React.FC = () => {
 
   useEffect(() => {
     try {
-      setQuotes(getInitialQuotes());
-      const saved = localStorage.getItem('expressflow_users');
-      if (saved) {
-        const parsed = JSON.parse(saved);
+      const savedQuotes = localStorage.getItem('expressflow_quotes');
+      if (savedQuotes) {
+          setQuotes(JSON.parse(savedQuotes));
+      } else {
+          setQuotes(getInitialQuotes());
+      }
+
+      const savedUsers = localStorage.getItem('expressflow_users');
+      if (savedUsers) {
+        const parsed = JSON.parse(savedUsers);
         if (Array.isArray(parsed)) setInvitedUsers(parsed);
       }
     } catch (e) {
@@ -59,37 +65,85 @@ const App: React.FC = () => {
     }
   }, [invitedUsers]);
 
-  const handleLogin = (user: User) => {
-    setCurrentUser(user);
-    setLoginStep('INITIAL');
-    setLoginError('');
-    setCurrentView('DASHBOARD');
-  };
+  useEffect(() => {
+    try {
+      localStorage.setItem('expressflow_quotes', JSON.stringify(quotes));
+    } catch (e) {
+      console.warn("LocalStorage indisponível");
+    }
+  }, [quotes]);
 
-  const handleAdminLogin = (e: React.FormEvent) => {
+  const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (adminEmailInput === 'martins_dan@icloud.com' && adminPasswordInput === 'zeroumaonove') {
-        handleLogin({ 
+    setLoginError('');
+    const email = loginEmail.toLowerCase().trim();
+    
+    // Check Master
+    if (email === 'martins_dan@icloud.com') {
+        setTargetUser({ 
             id: 'admin-master', 
             name: 'Administrador Master', 
             role: Role.MANAGEMENT, 
-            email: 'martins_dan@icloud.com' 
+            email: 'martins_dan@icloud.com',
+            password: 'zeroumaonove' 
         });
-        setAdminEmailInput('');
-        setAdminPasswordInput('');
-    } else {
-        setLoginError('Credenciais de administrador inválidas.');
+        setLoginStep('PASSWORD');
+        return;
     }
+
+    // Check Invited Users
+    const found = invitedUsers.find(u => u.email.toLowerCase().trim() === email);
+    if (found) {
+        setTargetUser(found);
+        if (!found.password) {
+            setLoginStep('FIRST_ACCESS');
+        } else {
+            setLoginStep('PASSWORD');
+        }
+    } else {
+        setLoginError('E-mail não encontrado no sistema.');
+    }
+  };
+
+  const handleLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetUser) return;
+
+    if (loginPassword === targetUser.password) {
+        setCurrentUser(targetUser);
+        setLoginError('');
+        setCurrentView('DASHBOARD');
+    } else {
+        setLoginError('Senha incorreta.');
+    }
+  };
+
+  const handleSetFirstPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetUser || !loginPassword) return;
+
+    const updatedUsers = invitedUsers.map(u => {
+        if (u.id === targetUser.id) {
+            return { ...u, password: loginPassword };
+        }
+        return u;
+    });
+
+    setInvitedUsers(updatedUsers);
+    const updatedTarget = { ...targetUser, password: loginPassword };
+    setCurrentUser(updatedTarget);
+    setCurrentView('DASHBOARD');
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
-    setLoginStep('INITIAL');
-    setAdminEmailInput('');
-    setAdminPasswordInput('');
+    setLoginStep('EMAIL');
+    setLoginEmail('');
+    setLoginPassword('');
+    setTargetUser(null);
   };
 
-  const handleInviteUser = (user: User) => {
+  const handleAddUser = (user: User) => {
     setInvitedUsers(prev => [...prev, user]);
   };
 
@@ -187,7 +241,6 @@ const App: React.FC = () => {
   const canCreateQuote = currentUser?.role === Role.SALES || currentUser?.role === Role.INSIDE_SALES || currentUser?.role === Role.MANAGEMENT;
   const canViewPricingTasks = currentUser?.role.startsWith('PRICING') || currentUser?.role === Role.MANAGEMENT;
   const isManagement = currentUser?.role === Role.MANAGEMENT;
-  const isMasterAdmin = currentUser?.email === 'martins_dan@icloud.com';
 
   if (!currentUser) {
     return (
@@ -195,101 +248,71 @@ const App: React.FC = () => {
         <div className="w-full max-w-md glass-panel rounded-3xl shadow-2xl overflow-hidden relative z-50 animate-fade-in">
           <div className="p-8 text-center flex flex-col items-center border-b border-black/5">
              <h1 className="text-3xl font-bold text-slate-800 tracking-tight">ExpressFlow</h1>
-             <p className="text-slate-500 text-xs mt-1 uppercase tracking-widest font-semibold">Portal Logístico</p>
+             <p className="text-slate-500 text-xs mt-1 uppercase tracking-widest font-semibold">Acesso ao Sistema</p>
           </div>
-          
           <div className="p-8">
-            {loginStep === 'INITIAL' && (
-              <div className="space-y-4">
-                <button 
-                  onClick={() => setLoginStep('USER_LOGIN')}
-                  className="w-full p-4 rounded-2xl bg-accent text-white font-bold shadow-glow flex justify-between items-center group transition-all hover:brightness-110 active:scale-95"
-                >
-                  <span>Entrar como Usuário</span>
-                  <span className="text-white/50 group-hover:text-white group-hover:translate-x-1 transition-all">›</span>
-                </button>
-                <button 
-                  onClick={() => { setLoginStep('ADMIN_LOGIN'); setLoginError(''); }}
-                  className="w-full p-4 rounded-2xl bg-white/40 border border-slate-200 text-slate-600 font-bold flex justify-between items-center group transition-all hover:bg-white/60 active:scale-95"
-                >
-                  <span>Acesso Administrador</span>
-                  <span className="text-slate-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all">›</span>
-                </button>
-              </div>
-            )}
-
-            {loginStep === 'ADMIN_LOGIN' && (
-              <form onSubmit={handleAdminLogin} className="space-y-4 animate-fade-in">
-                <div className="flex items-center mb-6">
-                    <button type="button" onClick={() => setLoginStep('INITIAL')} className="text-xs font-bold text-accent hover:text-blue-700 flex items-center px-3 py-1.5 rounded-xl bg-blue-50">
-                        ‹ Voltar
-                    </button>
-                    <h2 className="text-sm font-bold text-slate-800 ml-auto mr-auto uppercase tracking-wide">Login Admin</h2>
-                    <div className="w-12"></div>
+            {loginStep === 'EMAIL' && (
+              <form onSubmit={handleEmailSubmit} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">E-mail Cadastrado</label>
+                  <input 
+                    required
+                    type="email" 
+                    value={loginEmail}
+                    onChange={e => setLoginEmail(e.target.value)}
+                    className="glass-input w-full p-4 rounded-2xl text-sm" 
+                    placeholder="digite seu e-mail corporativo"
+                  />
                 </div>
-                <div className="space-y-4">
-                   <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">E-mail</label>
-                      <input 
-                        required
-                        type="email" 
-                        value={adminEmailInput}
-                        onChange={e => setAdminEmailInput(e.target.value)}
-                        className="glass-input w-full p-3.5 rounded-2xl text-sm" 
-                        placeholder="exemplo@icloud.com"
-                      />
-                   </div>
-                   <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Senha</label>
-                      <input 
-                        required
-                        type="password" 
-                        value={adminPasswordInput}
-                        onChange={e => setAdminPasswordInput(e.target.value)}
-                        className="glass-input w-full p-3.5 rounded-2xl text-sm" 
-                        placeholder="••••••••"
-                      />
-                   </div>
-                   {loginError && <p className="text-[10px] text-rose-500 font-bold text-center">{loginError}</p>}
-                   <button type="submit" className="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold shadow-lg shadow-black/10 hover:bg-black transition-all active:scale-95">Acessar Painel</button>
-                </div>
+                {loginError && <p className="text-[10px] text-rose-500 font-bold text-center">{loginError}</p>}
+                <button type="submit" className="w-full bg-accent text-white py-4 rounded-2xl font-bold shadow-glow hover:brightness-110 transition-all active:scale-95">Prosseguir</button>
               </form>
             )}
-
-            {loginStep === 'USER_LOGIN' && (
-               <div className="space-y-4 animate-fade-in">
-                  <div className="flex items-center mb-6">
-                    <button type="button" onClick={() => setLoginStep('INITIAL')} className="text-xs font-bold text-accent hover:text-blue-700 flex items-center px-3 py-1.5 rounded-xl bg-blue-50">
-                        ‹ Voltar
-                    </button>
-                    <h2 className="text-sm font-bold text-slate-800 ml-auto mr-auto uppercase tracking-wide">Selecionar Usuário</h2>
-                    <div className="w-12"></div>
-                  </div>
-                  
-                  <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
-                    {invitedUsers.length > 0 ? (
-                      invitedUsers.map(u => (
-                        <button
-                          key={u.id}
-                          onClick={() => handleLogin(u)}
-                          className="w-full p-4 rounded-2xl bg-white/40 border border-white/50 hover:bg-accent hover:text-white hover:shadow-glow transition-all duration-300 text-left group"
-                        >
-                          <div className="font-bold text-sm">{u.name}</div>
-                          <div className="text-[10px] opacity-70 uppercase tracking-widest font-semibold group-hover:text-white/80">{u.role.replace(/_/g, ' ')}</div>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="text-center py-10 text-slate-400 space-y-4">
-                        <p className="text-sm">Nenhum usuário cadastrado.</p>
-                        <p className="text-[10px] uppercase font-bold">O administrador deve enviar convites.</p>
-                      </div>
-                    )}
-                  </div>
-               </div>
+            {loginStep === 'PASSWORD' && (
+              <form onSubmit={handleLoginSubmit} className="space-y-4 animate-fade-in">
+                 <div className="flex items-center mb-4">
+                    <button type="button" onClick={() => { setLoginStep('EMAIL'); setLoginPassword(''); }} className="text-[10px] font-bold text-accent uppercase tracking-wider">‹ Mudar E-mail</button>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-slate-500 mb-2">Olá <strong>{targetUser?.name}</strong>, digite sua senha:</p>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Senha</label>
+                  <input 
+                    required
+                    autoFocus
+                    type="password" 
+                    value={loginPassword}
+                    onChange={e => setLoginPassword(e.target.value)}
+                    className="glass-input w-full p-4 rounded-2xl text-sm" 
+                    placeholder="••••••••"
+                  />
+                </div>
+                {loginError && <p className="text-[10px] text-rose-500 font-bold text-center">{loginError}</p>}
+                <button type="submit" className="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-black transition-all active:scale-95">Entrar no Sistema</button>
+              </form>
+            )}
+            {loginStep === 'FIRST_ACCESS' && (
+              <form onSubmit={handleSetFirstPassword} className="space-y-4 animate-fade-in">
+                <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 mb-4 text-center">
+                    <p className="text-xs text-blue-700 font-medium">Este é seu primeiro acesso, crie uma senha.</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Crie sua Senha</label>
+                  <input 
+                    required
+                    autoFocus
+                    type="password" 
+                    value={loginPassword}
+                    onChange={e => setLoginPassword(e.target.value)}
+                    className="glass-input w-full p-4 rounded-2xl text-sm" 
+                    placeholder="escolha uma senha forte"
+                  />
+                </div>
+                <button type="submit" className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-bold shadow-glow hover:bg-emerald-600 transition-all active:scale-95">Definir Senha e Entrar</button>
+              </form>
             )}
           </div>
         </div>
-        <p className="mt-8 text-slate-400 text-[10px] font-bold tracking-widest relative z-50 uppercase">ExpressFlow v1.2</p>
+        <p className="mt-8 text-slate-400 text-[10px] font-bold tracking-widest relative z-50 uppercase">ExpressFlow v2.0</p>
       </div>
     );
   }
@@ -311,129 +334,42 @@ const App: React.FC = () => {
              </div>
           </div>
         </div>
-
         <nav className="p-4 space-y-1 flex-1 overflow-y-auto custom-scrollbar">
-          <button onClick={() => { setCurrentView('DASHBOARD'); setFilterStatus('ALL'); }} className={`w-full text-left px-3 py-2 rounded-lg transition-all text-xs ${currentView === 'DASHBOARD' ? 'bg-accent text-white shadow-glow' : 'text-slate-400 hover:bg-white/10 hover:text-white'}`}>
-            Dashboard
-          </button>
-          
-          {isMasterAdmin && (
-            <button 
-              onClick={() => setIsInviteModalOpen(true)}
-              className="w-full text-left px-3 py-4 mt-2 mb-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-glow flex items-center group transition-all hover:brightness-110"
-            >
-                <div className="bg-white/20 p-1.5 rounded-lg mr-3 group-hover:scale-110 transition-transform">
-                    <IconPlus />
-                </div>
-                <span>Convidar Colaborador</span>
-            </button>
-          )}
-
+          <button onClick={() => { setCurrentView('DASHBOARD'); setFilterStatus('ALL'); }} className={`w-full text-left px-3 py-2 rounded-lg transition-all text-xs ${currentView === 'DASHBOARD' ? 'bg-accent text-white shadow-glow' : 'text-slate-400 hover:bg-white/10 hover:text-white'}`}>Dashboard</button>
           {canCreateQuote && (
             <>
                 <div className="pt-6 pb-2 px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Comercial</div>
-                <button onClick={() => setCurrentView('NEW_QUOTE')} className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center transition-all ${currentView === 'NEW_QUOTE' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-                    <IconPlus /> <span className="ml-2">Nova Cotação</span>
-                </button>
-                <button onClick={() => { setCurrentView('LIST'); setFilterStatus(QuoteStatus.PENDING_SALE); }} className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${currentView === 'LIST' && filterStatus === QuoteStatus.PENDING_SALE ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-                    Vendas Pendentes
-                </button>
+                <button onClick={() => setCurrentView('NEW_QUOTE')} className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center transition-all ${currentView === 'NEW_QUOTE' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><IconPlus /> <span className="ml-2">Nova Cotação</span></button>
+                <button onClick={() => { setCurrentView('LIST'); setFilterStatus(QuoteStatus.PENDING_SALE); }} className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${currentView === 'LIST' && filterStatus === QuoteStatus.PENDING_SALE ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>Vendas Pendentes</button>
             </>
           )}
-
           {canViewPricingTasks && (
                <>
                 <div className="pt-6 pb-2 px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Pricing</div>
-                <button onClick={() => { setCurrentView('LIST'); setFilterStatus(QuoteStatus.PENDING_PRICING); }} className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${currentView === 'LIST' && filterStatus === QuoteStatus.PENDING_PRICING ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-                    Tarefas Pendentes
-                </button>
+                <button onClick={() => { setCurrentView('LIST'); setFilterStatus(QuoteStatus.PENDING_PRICING); }} className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${currentView === 'LIST' && filterStatus === QuoteStatus.PENDING_PRICING ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>Tarefas Pendentes</button>
                </>
           )}
-
           {isManagement && (
                <>
                 <div className="pt-6 pb-2 px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Gestão / Admin</div>
-                <button onClick={() => setCurrentView('ADMIN_PANEL')} className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${currentView === 'ADMIN_PANEL' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-                    Gerenciar Equipe
-                </button>
-                <button onClick={() => { setCurrentView('LIST'); setFilterStatus('ALL'); }} className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${currentView === 'LIST' && filterStatus === 'ALL' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-                    Todas as Cotações
-                </button>
-                 <button onClick={() => setCurrentView('DYNAMIC_FILTER')} className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center transition-all ${currentView === 'DYNAMIC_FILTER' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-                    <IconSearch /> <span className="ml-2">Relatórios</span>
-                </button>
+                <button onClick={() => setCurrentView('ADMIN_PANEL')} className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${currentView === 'ADMIN_PANEL' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>Gerenciar Equipe</button>
+                <button onClick={() => { setCurrentView('LIST'); setFilterStatus('ALL'); }} className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all ${currentView === 'LIST' && filterStatus === 'ALL' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>Todas as Cotações</button>
+                <button onClick={() => setCurrentView('DYNAMIC_FILTER')} className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center transition-all ${currentView === 'DYNAMIC_FILTER' ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}><IconSearch /> <span className="ml-2">Relatórios</span></button>
                </>
           )}
         </nav>
-        
         <div className="p-4 border-t border-white/10">
-           <button onClick={handleLogout} className="w-full flex items-center justify-center px-3 py-2 rounded-lg border border-white/10 text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-all text-xs font-medium">
-            Sair
-          </button>
+           <button onClick={handleLogout} className="w-full flex items-center justify-center px-3 py-2 rounded-lg border border-white/10 text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-all text-xs font-medium">Sair</button>
         </div>
       </aside>
-
       <main className="flex-1 overflow-y-auto p-4 md:p-8 h-screen relative z-10 custom-scrollbar">
-        {isInviteModalOpen && (
-          <InviteModal 
-            onClose={() => setIsInviteModalOpen(false)} 
-            onInvite={handleInviteUser}
-          />
-        )}
-
-        {currentView === 'DASHBOARD' && (
-          <Dashboard 
-            user={currentUser} 
-            quotes={quotes} 
-            onStatusClick={(status) => { setFilterStatus(status); setCurrentView('LIST'); }}
-            onQuoteClick={handleQuoteClick}
-          />
-        )}
-
-        {currentView === 'ADMIN_PANEL' && (
-          <AdminPanel 
-            invitedUsers={invitedUsers}
-            onInvite={handleInviteUser}
-            onRemove={handleRemoveUser}
-            onClose={() => setCurrentView('DASHBOARD')}
-          />
-        )}
-
-        {currentView === 'NEW_QUOTE' && (
-          <NewQuoteForm 
-            user={currentUser} 
-            onSubmit={handleCreateQuote} 
-            onCancel={() => setCurrentView('DASHBOARD')} 
-          />
-        )}
-
-        {currentView === 'EDIT_QUOTE' && editingQuote && (
-          <NewQuoteForm 
-            user={currentUser} 
-            initialData={editingQuote}
-            onSubmit={handleUpdateQuote} 
-            onCancel={() => { setEditingQuote(null); setCurrentView('LIST'); }} 
-          />
-        )}
-
-        {currentView === 'PRICING_TASK' && activeQuoteId && (
-          <PricingForm 
-            quote={quotes.find(q => q.id === activeQuoteId)!}
-            onSubmit={handlePricingSubmit}
-            onCancel={() => { setActiveQuoteId(null); setCurrentView('LIST'); }}
-          />
-        )}
-
-        {currentView === 'SALES_PROPOSAL' && activeQuoteId && (
-          <SalesProposalForm
-            quote={quotes.find(q => q.id === activeQuoteId)!}
-            onSubmit={handleSalesProposalSubmit}
-            onCancel={() => { setActiveQuoteId(null); setCurrentView('LIST'); }}
-          />
-        )}
-
+        {currentView === 'DASHBOARD' && <Dashboard user={currentUser} quotes={quotes} onStatusClick={(status) => { setFilterStatus(status); setCurrentView('LIST'); }} onQuoteClick={handleQuoteClick} />}
+        {currentView === 'ADMIN_PANEL' && <AdminPanel invitedUsers={invitedUsers} onInvite={handleAddUser} onRemove={handleRemoveUser} onClose={() => setCurrentView('DASHBOARD')} />}
+        {currentView === 'NEW_QUOTE' && <NewQuoteForm user={currentUser} onSubmit={handleCreateQuote} onCancel={() => setCurrentView('DASHBOARD')} />}
+        {currentView === 'EDIT_QUOTE' && editingQuote && <NewQuoteForm user={currentUser} initialData={editingQuote} onSubmit={handleUpdateQuote} onCancel={() => { setEditingQuote(null); setCurrentView('LIST'); }} />}
+        {currentView === 'PRICING_TASK' && activeQuoteId && <PricingForm quote={quotes.find(q => q.id === activeQuoteId)!} onSubmit={handlePricingSubmit} onCancel={() => { setActiveQuoteId(null); setCurrentView('LIST'); }} />}
+        {currentView === 'SALES_PROPOSAL' && activeQuoteId && <SalesProposalForm quote={quotes.find(q => q.id === activeQuoteId)!} onSubmit={handleSalesProposalSubmit} onCancel={() => { setActiveQuoteId(null); setCurrentView('LIST'); }} />}
         {currentView === 'DYNAMIC_FILTER' && <DynamicFilter quotes={quotes} onQuoteClick={handleQuoteClick} />}
-
         {currentView === 'LIST' && (
           <div className="glass-panel rounded-2xl shadow-glass overflow-hidden min-h-[600px] flex flex-col backdrop-blur-2xl animate-fade-in">
              <div className="p-6 border-b border-black/5 flex justify-between items-center bg-white/30 sticky top-0 z-10 backdrop-blur-md">
@@ -443,7 +379,6 @@ const App: React.FC = () => {
                 </div>
                 <button onClick={() => setCurrentView('DASHBOARD')} className="px-4 py-2 text-xs border border-slate-300/40 rounded-lg bg-white/50 text-slate-600 font-medium">Voltar</button>
              </div>
-             
              <div className="overflow-x-auto flex-1 pb-24">
                 <table className="min-w-full divide-y divide-black/5">
                     <thead className="bg-white/40">
@@ -464,7 +399,6 @@ const App: React.FC = () => {
                             const showSalesAction = (currentUser.role === Role.SALES || currentUser.role === Role.INSIDE_SALES || isManagement) && (q.status === QuoteStatus.PRICED || q.status === QuoteStatus.PENDING_SALE);
                             const showStatusControl = (currentUser.role === Role.SALES || currentUser.role === Role.INSIDE_SALES || isManagement) && 
                                                       (q.status === QuoteStatus.PRICED || q.status === QuoteStatus.PENDING_SALE || q.status === QuoteStatus.CLOSED_WON || q.status === QuoteStatus.CLOSED_LOST || q.status === QuoteStatus.REVALIDATION_REQ);
-
                             return (
                                 <tr key={q.id} className="hover:bg-white/40 transition-colors group relative">
                                     <td className="px-6 py-4">
@@ -478,27 +412,18 @@ const App: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center text-xs text-slate-700">
-                                            <span className="text-slate-500 mr-2 bg-white/50 p-1 rounded-md border border-white/40">
-                                                {q.modalMain.includes('Aéreo') ? <IconPlane /> : q.modalMain.includes('Marítimo') ? <IconShip /> : <IconTruck />}
-                                            </span>
+                                            <span className="text-slate-500 mr-2 bg-white/50 p-1 rounded-md border border-white/40">{q.modalMain.includes('Aéreo') ? <IconPlane /> : q.modalMain.includes('Marítimo') ? <IconShip /> : <IconTruck />}</span>
                                             <span className="font-medium">{q.modalMain}</span>
                                         </div>
                                         <div className="text-[10px] text-slate-500 mt-1 ml-8">{q.originCountry} → {q.destCountry}</div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <span className={`px-2.5 py-0.5 inline-flex text-[10px] leading-5 font-bold uppercase rounded-full border shadow-sm
-                                            ${q.status === QuoteStatus.PENDING_PRICING ? 'bg-amber-100 text-amber-700' : 
-                                              q.status === QuoteStatus.PRICED ? 'bg-sky-100 text-sky-700' : 
-                                              q.status === QuoteStatus.CLOSED_WON ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}
-                                        `}>
+                                        <span className={`px-2.5 py-0.5 inline-flex text-[10px] leading-5 font-bold uppercase rounded-full border shadow-sm ${q.status === QuoteStatus.PENDING_PRICING ? 'bg-amber-100 text-amber-700' : q.status === QuoteStatus.PRICED ? 'bg-sky-100 text-sky-700' : q.status === QuoteStatus.CLOSED_WON ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
                                             {q.status.replace(/_/g, ' ')}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 relative">
-                                        <div className={`flex items-center text-xs font-medium ${isOverdue ? 'text-rose-500' : 'text-slate-600'}`}>
-                                            <IconClock />
-                                            <span className="ml-1.5">{hoursElapsed}h <span className="text-slate-400">/ 22h</span></span>
-                                        </div>
+                                        <div className={`flex items-center text-xs font-medium ${isOverdue ? 'text-rose-500' : 'text-slate-600'}`}><IconClock /><span className="ml-1.5">{hoursElapsed}h <span className="text-slate-400">/ 22h</span></span></div>
                                         <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-white rounded-xl p-3 shadow-2xl border border-black/5 z-50 text-[10px]">
                                             <div className="space-y-1">
                                                 <div className="flex justify-between"><span>Pré-Pricing:</span><span className="font-mono">{formatDuration(q.createdDate, q.sentToPricingAt)}</span></div>
@@ -508,15 +433,9 @@ const App: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end space-x-2">
-                                            {isManagement && (
-                                                <button onClick={() => { setEditingQuote(q); setCurrentView('EDIT_QUOTE'); }} className="p-2 text-slate-400 hover:text-accent transition-colors"><IconEdit /></button>
-                                            )}
-                                            {showPricingAction && (
-                                                <button onClick={() => { setActiveQuoteId(q.id); setCurrentView('PRICING_TASK'); }} className="bg-accent text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-glow">Atender</button>
-                                            )}
-                                            {showSalesAction && (
-                                                <button onClick={() => { setActiveQuoteId(q.id); setCurrentView('SALES_PROPOSAL'); }} className="bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-glow flex items-center"><IconDollar /><span className="ml-1">Ofertas</span></button>
-                                            )}
+                                            {isManagement && <button onClick={() => { setEditingQuote(q); setCurrentView('EDIT_QUOTE'); }} className="p-2 text-slate-400 hover:text-accent transition-colors"><IconEdit /></button>}
+                                            {showPricingAction && <button onClick={() => { setActiveQuoteId(q.id); setCurrentView('PRICING_TASK'); }} className="bg-accent text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-glow">Atender</button>}
+                                            {showSalesAction && <button onClick={() => { setActiveQuoteId(q.id); setCurrentView('SALES_PROPOSAL'); }} className="bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-glow flex items-center"><IconDollar /><span className="ml-1">Ofertas</span></button>}
                                             {showStatusControl && (
                                                 <select value={q.status} onChange={(e) => handleStatusChange(q.id, e.target.value as QuoteStatus)} className="bg-white/50 border border-slate-200 text-[9px] font-bold p-1 rounded-md uppercase">
                                                     <option value={QuoteStatus.PENDING_SALE}>Pendente</option>
